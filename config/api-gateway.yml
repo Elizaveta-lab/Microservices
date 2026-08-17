@@ -1,0 +1,79 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/api/users/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: user-service
+                    fallbackUri: forward:/fallback/user
+
+            - id: notification-service
+              uri: lb://notification-service
+              predicates:
+                - Path=/api/notifications/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: notification-service
+                    fallbackUri: forward:/fallback/notification
+
+            # Swagger user-service
+            - id: user-service-swagger
+              uri: lb://user-service
+              predicates:
+                - Path=/user/swagger-ui.html,/user/swagger-ui/**,/user/webjars/**,/user/v3/api-docs/**
+              filters:
+                - RewritePath=/user/(?<segment>.*), /${segment}
+
+            # Swagger notification-service
+            - id: notification-service-swagger
+              uri: lb://notification-service
+              predicates:
+                - Path=/notification/swagger-ui.html,/notification/swagger-ui/**,/notification/webjars/**,/notification/v3/api-docs/**
+              filters:
+                - RewritePath=/notification/(?<segment>.*), /${segment}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://discovery-server:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    urls:
+      - name: User Service
+        url: /user/v3/api-docs
+        primaryName: User Service
+      - name: Notification Service
+        url: /notification/v3/api-docs
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      user-service:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+      notification-service:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
